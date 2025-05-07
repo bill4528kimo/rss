@@ -23,6 +23,9 @@ jobs:
         run: |
           pip install requests beautifulsoup4
 
+      - name: 建立 rss 目錄
+        run: mkdir -p rss
+
       - name: 寫入 RSS 產生器程式碼（修正目錄）
         run: |
           cat << 'EOF' > rss/yahoo_pchome_rss_fixed.py
