@@ -1,0 +1,36 @@
+# .github/workflows/update_rss.yml
+name: 自動更新 Yahoo/PChome RSS
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天台灣上午 10:00（UTC+8）
+  workflow_dispatch:     # 也允許手動觸發
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 下載 Repo 原始碼
+        uses: actions/checkout@v3
+
+      - name: 設定 Python 環境
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 安裝必要套件
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: 執行 RSS 產生器
+        run: |
+          python yahoo_pchome_rss_fixed.py
+
+      - name: 提交更新的 XML 檔案
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add yahoo_pchome_travel.xml
+          git commit -m "🤖 自動更新 RSS 資料 ($(date +'%Y-%m-%d %H:%M'))" || echo "No changes to commit"
+          git push
