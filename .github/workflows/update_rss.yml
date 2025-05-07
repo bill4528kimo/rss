@@ -6,6 +6,9 @@ on:
     - cron: '0 2 * * *'  # 每天台灣上午 10:00（UTC+8）
   workflow_dispatch:     # 也允許手動觸發
 
+permissions:
+  contents: write  # ✅ 允許 git push 回 Repo
+
 jobs:
   build:
     runs-on: ubuntu-latest
