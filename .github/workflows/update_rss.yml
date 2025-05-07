@@ -23,14 +23,85 @@ jobs:
         run: |
           pip install requests beautifulsoup4
 
-      - name: 執行 RSS 產生器
+      - name: 寫入 RSS 產生器程式碼（修正目錄）
         run: |
-          python yahoo_pchome_rss_fixed.py
+          cat << 'EOF' > rss/yahoo_pchome_rss_fixed.py
+          import requests
+          from bs4 import BeautifulSoup
+          import xml.etree.ElementTree as ET
+          from datetime import datetime
+
+          sources = {
+              "Yahoo 美食": "https://tw.news.yahoo.com/food",
+              "Yahoo 景點": "https://tw.news.yahoo.com/tourist-spots",
+              "PChome 旅遊": "https://news.pchome.com.tw/cat/travel",
+              "PChome 熱門旅遊": "https://news.pchome.com.tw/cat/travel/hot"
+          }
+
+          def fetch_articles(name, url):
+              try:
+                  res = requests.get(url, timeout=10)
+                  soup = BeautifulSoup(res.text, "html.parser")
+                  articles = []
+
+                  if "yahoo.com" in url:
+                      for a in soup.select("a[href*='/news/']"):
+                          title = a.text.strip()
+                          link = a.get("href")
+                          if title and link and not any(k in title for k in ["股", "稅", "財經"]):
+                              if not link.startswith("http"):
+                                  link = "https://tw.news.yahoo.com" + link
+                              articles.append((name, title, link))
+                  elif "pchome.com.tw" in url:
+                      for a in soup.select(".news_list a"):
+                          title = a.text.strip()
+                          link = a.get("href")
+                          if title and link:
+                              articles.append((name, title, link))
+                  return articles[:10]  # 每個來源最多 10 筆
+              except Exception as e:
+                  print(f"[錯誤] {name}: {e}")
+                  return []
+
+          def build_rss(all_articles, output_file="rss/yahoo_pchome_travel.xml"):
+              rss = ET.Element("rss", version="2.0")
+              channel = ET.SubElement(rss, "channel")
+              ET.SubElement(channel, "title").text = "自製 Yahoo + PChome 旅遊 RSS"
+              ET.SubElement(channel, "link").text = "https://bill4528kimo.github.io/rss/yahoo_pchome_travel.xml"
+              ET.SubElement(channel, "description").text = "Yahoo 美食與景點、PChome 旅遊新聞 RSS"
+              ET.SubElement(channel, "lastBuildDate").text = datetime.now().strftime("%a, %d %b %Y %H:%M:%S +0800")
+
+              for source, title, link in all_articles:
+                  item = ET.SubElement(channel, "item")
+                  ET.SubElement(item, "title").text = title
+                  ET.SubElement(item, "link").text = link
+                  ET.SubElement(item, "description").text = f"{source} 提供"
+                  ET.SubElement(item, "guid").text = link
+                  ET.SubElement(item, "pubDate").text = datetime.now().strftime("%a, %d %b %Y %H:%M:%S +0800")
+
+              tree = ET.ElementTree(rss)
+              tree.write(output_file, encoding="utf-8", xml_declaration=True)
+              print(f"✅ 已產出 RSS 檔：{output_file}")
+
+          def main():
+              all_articles = []
+              for name, url in sources.items():
+                  print(f"抓取中：{name}")
+                  all_articles += fetch_articles(name, url)
+              build_rss(all_articles)
+
+          if __name__ == "__main__":
+              main()
+          EOF
+
+      - name: 執行 RSS 產生器（修正路徑）
+        run: |
+          python rss/yahoo_pchome_rss_fixed.py
 
       - name: 提交更新的 XML 檔案
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add yahoo_pchome_travel.xml
+          git add rss/yahoo_pchome_travel.xml
           git commit -m "🤖 自動更新 RSS 資料 ($(date +'%Y-%m-%d %H:%M'))" || echo "No changes to commit"
           git push
